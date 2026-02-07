@@ -38,6 +38,7 @@
 - **2026-02-10** 🎉 Released **v0.1.3.post6** with improvements! Check the updates [notes](https://github.com/HKUDS/nanobot/releases/tag/v0.1.3.post6) and our [roadmap](https://github.com/HKUDS/nanobot/discussions/431).
 - **2026-02-09** 💬 Added Slack, Email, and QQ support — nanobot now supports multiple chat platforms!
 - **2026-02-08** 🔧 Refactored Providers—adding a new LLM provider now takes just 2 simple steps! Check [here](#providers).
+- **2026-02-07** ✨ Added iMessage channel support (macOS only)!
 - **2026-02-07** 🚀 Released **v0.1.3.post5** with Qwen support & several key improvements! Check [here](https://github.com/HKUDS/nanobot/releases/tag/v0.1.3.post5) for details.
 - **2026-02-06** ✨ Added Moonshot/Kimi provider, Discord integration, and enhanced security hardening!
 - **2026-02-05** ✨ Added Feishu channel, DeepSeek provider, and enhanced scheduled tasks support!
@@ -162,6 +163,7 @@ Connect nanobot to your favorite chat platform.
 |---------|---------------|
 | **Telegram** | Bot token from @BotFather |
 | **Discord** | Bot token + Message Content intent |
+| **iMessage** | macOS only |
 | **WhatsApp** | QR code scan |
 | **Feishu** | App ID + App Secret |
 | **Mochat** | Claw token (auto-setup available) |
@@ -302,6 +304,44 @@ If you prefer to configure manually, add the following to `~/.nanobot/config.jso
 ```bash
 nanobot gateway
 ```
+
+</details>
+
+<details>
+<summary><b>iMessage</b> (macOS)</summary>
+
+Requires **macOS** with `imsg` CLI installed.
+
+**1. Install imsg CLI**
+
+```bash
+brew install imsg
+# or build from source if not in brew
+```
+
+**2. Configure**
+
+```json
+{
+  "channels": {
+    "imsg": {
+      "enabled": true,
+      "allowFrom": ["+1234567890", "user@icloud.com"]
+    }
+  }
+}
+```
+
+> `allowFrom`: List of phone numbers or email addresses allowed to interact with the bot.
+
+**3. Run**
+
+```bash
+nanobot gateway
+```
+
+> [!NOTE]
+> This channel only works on macOS devices where your iMessage account is logged in.
 
 </details>
 

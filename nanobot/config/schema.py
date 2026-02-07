@@ -165,6 +165,12 @@ class QQConfig(Base):
     allow_from: list[str] = Field(default_factory=list)  # Allowed user openids (empty = public access)
 
 
+class ImsgConfig(Base):
+    """iMessage channel configuration."""
+    enabled: bool = False
+    allow_from: list[str] = Field(default_factory=list)  # Allowed handles/numbers
+
+
 class ChannelsConfig(Base):
     """Configuration for chat channels."""
 
@@ -177,6 +183,7 @@ class ChannelsConfig(Base):
     email: EmailConfig = Field(default_factory=EmailConfig)
     slack: SlackConfig = Field(default_factory=SlackConfig)
     qq: QQConfig = Field(default_factory=QQConfig)
+    imsg: ImsgConfig = Field(default_factory=ImsgConfig)
 
 
 class AgentDefaults(Base):

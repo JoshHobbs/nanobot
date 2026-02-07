@@ -136,6 +136,17 @@ class ChannelManager:
                 logger.info("QQ channel enabled")
             except ImportError as e:
                 logger.warning("QQ channel not available: {}", e)
+
+        # iMessage channel
+        if self.config.channels.imsg.enabled:
+            try:
+                from nanobot.channels.imsg import ImsgChannel
+                self.channels["imsg"] = ImsgChannel(
+                    self.config.channels.imsg, self.bus
+                )
+                logger.info("iMessage channel enabled")
+            except ImportError as e:
+                logger.warning("iMessage channel not available: {}", e)
     
     async def _start_channel(self, name: str, channel: BaseChannel) -> None:
         """Start a channel and log any exceptions."""
