@@ -171,6 +171,15 @@ class ImsgConfig(Base):
     allow_from: list[str] = Field(default_factory=list)  # Allowed handles/numbers
 
 
+class SignalConfig(Base):
+    """Signal channel configuration using signal-cli."""
+    enabled: bool = False
+    account: str = ""  # Phone number in international format, e.g. "+14155551234"
+    cli_path: str | None = None  # Path to signal-cli binary (default: PATH lookup)
+    config_path: str | None = None  # signal-cli data directory override
+    allow_from: list[str] = Field(default_factory=list)  # Allowed phone numbers
+
+
 class ChannelsConfig(Base):
     """Configuration for chat channels."""
 
@@ -184,6 +193,7 @@ class ChannelsConfig(Base):
     slack: SlackConfig = Field(default_factory=SlackConfig)
     qq: QQConfig = Field(default_factory=QQConfig)
     imsg: ImsgConfig = Field(default_factory=ImsgConfig)
+    signal: SignalConfig = Field(default_factory=SignalConfig)
 
 
 class AgentDefaults(Base):
