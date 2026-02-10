@@ -143,6 +143,8 @@ class OmiChannel(BaseChannel):
                 convos = await self.client.get_conversations(
                     limit=10, include_transcript=True,
                 )
+                new_count = sum(1 for c in convos if c.get("id") and c["id"] not in self._seen_ids)
+                logger.debug(f"Omi poll: {len(convos)} conversations, {new_count} new")
                 for conv in convos:
                     cid = conv.get("id")
                     if not cid or cid in self._seen_ids:
