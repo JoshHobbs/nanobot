@@ -9,13 +9,6 @@ services:
     volumes:
       - ~/.nanobot:/home/nanobot/.nanobot
       - ~/.claude:/home/nanobot/.claude
-      # Signal: mount host signal-cli + JRE + account data
-      - ~/.local/bin/signal-cli:/usr/local/bin/signal-cli:ro
-      - ~/.local/opt/signal-cli-0.13.24:/opt/signal-cli-0.13.24:ro
-      - ~/.local/opt/jdk-21.0.10+7-jre:/opt/java:ro
+      # Signal account data (linked device keys)
       - ~/.local/share/signal-cli:/home/nanobot/.local/share/signal-cli
-      - ~/tmp:/home/nanobot/tmp
-    environment:
-      - JAVA_HOME=/opt/java
-      - PATH=/opt/java/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
     command: ["gateway"]
