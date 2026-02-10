@@ -242,10 +242,16 @@ class ExecToolConfig(BaseModel):
     timeout: int = 60
 
 
+class GoogleMapsConfig(BaseModel):
+    """Google Maps tools configuration."""
+    api_key: str = ""  # Google Maps Platform API key
+
+
 class ToolsConfig(BaseModel):
     """Tools configuration."""
     web: WebToolsConfig = Field(default_factory=WebToolsConfig)
     exec: ExecToolConfig = Field(default_factory=ExecToolConfig)
+    google_maps: GoogleMapsConfig = Field(default_factory=GoogleMapsConfig)
     restrict_to_workspace: bool = False  # If true, restrict all tool access to workspace directory
 
 

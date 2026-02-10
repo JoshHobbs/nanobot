@@ -337,8 +337,9 @@ def gateway(
         session_manager=session_manager,
         omi_api_key=config.channels.omi.api_key or None,
         omi_api_url=config.channels.omi.api_url,
+        google_maps_api_key=config.tools.google_maps.api_key or None,
     )
-    
+
     # Set cron callback (needs agent)
     async def on_cron_job(job: CronJob) -> str | None:
         """Execute a cron job through the agent."""
@@ -444,8 +445,9 @@ def agent(
         restrict_to_workspace=config.tools.restrict_to_workspace,
         omi_api_key=config.channels.omi.api_key or None,
         omi_api_url=config.channels.omi.api_url,
+        google_maps_api_key=config.tools.google_maps.api_key or None,
     )
-    
+
     # Show spinner when logs are off (no output to miss); skip when logs are on
     def _thinking_ctx():
         if logs:
