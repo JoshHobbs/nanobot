@@ -294,12 +294,18 @@ class GoogleMapsConfig(Base):
     api_key: str = ""  # Google Maps Platform API key
 
 
+class TodoistConfig(Base):
+    """Todoist integration configuration."""
+    api_token: str = ""  # Personal API token from https://app.todoist.com/prefs/integrations
+
+
 class ToolsConfig(Base):
     """Tools configuration."""
 
     web: WebToolsConfig = Field(default_factory=WebToolsConfig)
     exec: ExecToolConfig = Field(default_factory=ExecToolConfig)
     google_maps: GoogleMapsConfig = Field(default_factory=GoogleMapsConfig)
+    todoist: TodoistConfig = Field(default_factory=TodoistConfig)
     restrict_to_workspace: bool = False  # If true, restrict all tool access to workspace directory
     mcp_servers: dict[str, MCPServerConfig] = Field(default_factory=dict)
 

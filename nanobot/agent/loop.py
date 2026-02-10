@@ -29,6 +29,7 @@ from nanobot.agent.tools.google_maps import (
     MapsGeocodeTool, MapsSearchPlacesTool, MapsDirectionsTool,
     MapsDistanceMatrixTool, MapsPlaceDetailsTool,
 )
+from nanobot.agent.tools.todoist import TodoistTool
 from nanobot.session.manager import Session, SessionManager
 
 if TYPE_CHECKING:
@@ -67,6 +68,7 @@ class AgentLoop:
         omi_api_key: str | None = None,
         omi_api_url: str = "https://api.omi.me/v1/dev",
         google_maps_api_key: str | None = None,
+        todoist_api_token: str | None = None,
     ):
         from nanobot.config.schema import ExecToolConfig
         self.bus = bus
@@ -84,6 +86,7 @@ class AgentLoop:
         self.omi_api_key = omi_api_key
         self.omi_api_url = omi_api_url
         self.google_maps_api_key = google_maps_api_key
+        self.todoist_api_token = todoist_api_token
 
         self.context = ContextBuilder(workspace)
         self.sessions = session_manager or SessionManager(workspace)
@@ -98,6 +101,7 @@ class AgentLoop:
             brave_api_key=brave_api_key,
             exec_config=self.exec_config,
             restrict_to_workspace=restrict_to_workspace,
+            todoist_api_token=todoist_api_token,
         )
 
         self._running = False
@@ -141,6 +145,9 @@ class AgentLoop:
             self.tools.register(MapsDirectionsTool(api_key=self.google_maps_api_key))
             self.tools.register(MapsDistanceMatrixTool(api_key=self.google_maps_api_key))
             self.tools.register(MapsPlaceDetailsTool(api_key=self.google_maps_api_key))
+
+        # Todoist tool (for task management)
+        self.tools.register(TodoistTool(api_token=self.todoist_api_token))
 
     async def _connect_mcp(self) -> None:
         """Connect to configured MCP servers (one-time, lazy)."""
