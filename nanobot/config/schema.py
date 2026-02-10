@@ -289,11 +289,17 @@ class MCPServerConfig(Base):
     headers: dict[str, str] = Field(default_factory=dict)  # HTTP: Custom HTTP Headers
 
 
+class GoogleMapsConfig(Base):
+    """Google Maps tools configuration."""
+    api_key: str = ""  # Google Maps Platform API key
+
+
 class ToolsConfig(Base):
     """Tools configuration."""
 
     web: WebToolsConfig = Field(default_factory=WebToolsConfig)
     exec: ExecToolConfig = Field(default_factory=ExecToolConfig)
+    google_maps: GoogleMapsConfig = Field(default_factory=GoogleMapsConfig)
     restrict_to_workspace: bool = False  # If true, restrict all tool access to workspace directory
     mcp_servers: dict[str, MCPServerConfig] = Field(default_factory=dict)
 

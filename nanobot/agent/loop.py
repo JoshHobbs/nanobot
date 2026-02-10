@@ -25,6 +25,10 @@ from nanobot.bus.events import InboundMessage, OutboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.providers.base import LLMProvider
 from nanobot.agent.tools.omi import OmiConversationsTool, OmiMemoriesTool
+from nanobot.agent.tools.google_maps import (
+    MapsGeocodeTool, MapsSearchPlacesTool, MapsDirectionsTool,
+    MapsDistanceMatrixTool, MapsPlaceDetailsTool,
+)
 from nanobot.session.manager import Session, SessionManager
 
 if TYPE_CHECKING:
@@ -62,6 +66,7 @@ class AgentLoop:
         mcp_servers: dict | None = None,
         omi_api_key: str | None = None,
         omi_api_url: str = "https://api.omi.me/v1/dev",
+        google_maps_api_key: str | None = None,
     ):
         from nanobot.config.schema import ExecToolConfig
         self.bus = bus
@@ -78,6 +83,7 @@ class AgentLoop:
         self.restrict_to_workspace = restrict_to_workspace
         self.omi_api_key = omi_api_key
         self.omi_api_url = omi_api_url
+        self.google_maps_api_key = google_maps_api_key
 
         self.context = ContextBuilder(workspace)
         self.sessions = session_manager or SessionManager(workspace)
@@ -127,6 +133,14 @@ class AgentLoop:
             self.tools.register(OmiMemoriesTool(
                 api_key=self.omi_api_key, api_url=self.omi_api_url,
             ))
+
+        # Google Maps tools
+        if self.google_maps_api_key:
+            self.tools.register(MapsGeocodeTool(api_key=self.google_maps_api_key))
+            self.tools.register(MapsSearchPlacesTool(api_key=self.google_maps_api_key))
+            self.tools.register(MapsDirectionsTool(api_key=self.google_maps_api_key))
+            self.tools.register(MapsDistanceMatrixTool(api_key=self.google_maps_api_key))
+            self.tools.register(MapsPlaceDetailsTool(api_key=self.google_maps_api_key))
 
     async def _connect_mcp(self) -> None:
         """Connect to configured MCP servers (one-time, lazy)."""
