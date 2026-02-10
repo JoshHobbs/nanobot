@@ -158,6 +158,17 @@ class ChannelManager:
                 logger.info("Signal channel enabled")
             except ImportError as e:
                 logger.warning("Signal channel not available: {}", e)
+
+        # Omi wearable channel
+        if self.config.channels.omi.enabled:
+            try:
+                from nanobot.channels.omi import OmiChannel
+                self.channels["omi"] = OmiChannel(
+                    self.config.channels.omi, self.bus
+                )
+                logger.info("Omi wearable channel enabled")
+            except ImportError as e:
+                logger.warning("Omi channel not available: {}", e)
     
     async def _start_channel(self, name: str, channel: BaseChannel) -> None:
         """Start a channel and log any exceptions."""
