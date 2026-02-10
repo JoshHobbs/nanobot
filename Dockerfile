@@ -30,11 +30,27 @@ WORKDIR /app/bridge
 RUN npm install && npm run build
 WORKDIR /app
 
-# Create config directory
-RUN mkdir -p /root/.nanobot
+# Install Claude Code CLI
+RUN npm install -g @anthropic-ai/claude-code
+
+# Install signal-cli (Java-based, for Signal channel)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends default-jre-headless && \
+    rm -rf /var/lib/apt/lists/* && \
+    curl -sL "https://github.com/AsamK/signal-cli/releases/download/v0.13.24/signal-cli-0.13.24.tar.gz" \
+      -o /tmp/signal-cli.tar.gz && \
+    tar xzf /tmp/signal-cli.tar.gz -C /opt && \
+    ln -s /opt/signal-cli-0.13.24/bin/signal-cli /usr/local/bin/signal-cli && \
+    rm /tmp/signal-cli.tar.gz
+
+# Create non-root user with UID 1000 to match host user
+RUN useradd -m -s /bin/bash -u 1000 nanobot
 
 # Gateway default port
 EXPOSE 18790
+
+USER nanobot
+WORKDIR /home/nanobot
 
 ENTRYPOINT ["nanobot"]
 CMD ["status"]
