@@ -19,6 +19,8 @@ from nanobot.agent.tools.message import MessageTool
 from nanobot.agent.tools.spawn import SpawnTool
 from nanobot.agent.tools.cron import CronTool
 from nanobot.agent.memory import MemoryStore
+from nanobot.agent.tools.claude_code import ClaudeCodeTool
+from nanobot.agent.tools.omi import OmiConversationsTool, OmiMemoriesTool
 from nanobot.agent.subagent import SubagentManager
 from nanobot.session.manager import SessionManager
 
@@ -48,6 +50,8 @@ class AgentLoop:
         cron_service: "CronService | None" = None,
         restrict_to_workspace: bool = False,
         session_manager: SessionManager | None = None,
+        omi_api_key: str | None = None,
+        omi_api_url: str = "https://api.omi.me/v1/dev",
     ):
         from nanobot.config.schema import ExecToolConfig
         from nanobot.cron.service import CronService
@@ -61,6 +65,8 @@ class AgentLoop:
         self.exec_config = exec_config or ExecToolConfig()
         self.cron_service = cron_service
         self.restrict_to_workspace = restrict_to_workspace
+        self.omi_api_key = omi_api_key
+        self.omi_api_url = omi_api_url
         
         self.context = ContextBuilder(workspace)
         self.sessions = session_manager or SessionManager(workspace)
@@ -109,6 +115,18 @@ class AgentLoop:
         # Cron tool (for scheduling)
         if self.cron_service:
             self.tools.register(CronTool(self.cron_service))
+
+        # Claude Code tool (autonomous coding agent)
+        self.tools.register(ClaudeCodeTool(working_dir=str(self.workspace), timeout=300))
+
+        # Omi wearable tools
+        if self.omi_api_key:
+            self.tools.register(OmiConversationsTool(
+                api_key=self.omi_api_key, api_url=self.omi_api_url,
+            ))
+            self.tools.register(OmiMemoriesTool(
+                api_key=self.omi_api_key, api_url=self.omi_api_url,
+            ))
     
     async def run(self) -> None:
         """Run the agent loop, processing messages from the bus."""

@@ -157,6 +157,15 @@ class SignalConfig(BaseModel):
     allow_from: list[str] = Field(default_factory=list)  # Allowed phone numbers
 
 
+class OmiConfig(BaseModel):
+    """Omi wearable channel configuration."""
+    enabled: bool = False
+    api_key: str = ""  # Omi developer API key (omi_dev_...)
+    api_url: str = "https://api.omi.me/v1/dev"
+    poll_interval: int = 30  # Seconds between conversation polls
+    allow_from: list[str] = Field(default_factory=list)
+
+
 class ChannelsConfig(BaseModel):
     """Configuration for chat channels."""
     whatsapp: WhatsAppConfig = Field(default_factory=WhatsAppConfig)
@@ -170,6 +179,7 @@ class ChannelsConfig(BaseModel):
     qq: QQConfig = Field(default_factory=QQConfig)
     imsg: ImsgConfig = Field(default_factory=ImsgConfig)
     signal: SignalConfig = Field(default_factory=SignalConfig)
+    omi: OmiConfig = Field(default_factory=OmiConfig)
 
 
 class AgentDefaults(BaseModel):
