@@ -1,31 +1,21 @@
-x-common-config: &common-config
-  build:
-    context: .
-    dockerfile: Dockerfile
-  volumes:
-    - ~/.nanobot:/root/.nanobot
-
 services:
-  nanobot-gateway:
-    container_name: nanobot-gateway
-    <<: *common-config
-    command: ["gateway"]
+  nanobot:
+    build: .
+    image: nanobot
+    container_name: nanobot
     restart: unless-stopped
     ports:
-      - 18790:18790
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
-        reservations:
-          cpus: '0.25'
-          memory: 256M
-  
-  nanobot-cli:
-    <<: *common-config
-    profiles:
-      - cli
-    command: ["status"]
-    stdin_open: true
-    tty: true
+      - "18790:18790"
+    volumes:
+      - ~/.nanobot:/home/nanobot/.nanobot
+      - ~/.claude:/home/nanobot/.claude
+      # Signal: mount host signal-cli + JRE + account data
+      - ~/.local/bin/signal-cli:/usr/local/bin/signal-cli:ro
+      - ~/.local/opt/signal-cli-0.13.24:/opt/signal-cli-0.13.24:ro
+      - ~/.local/opt/jdk-21.0.10+7-jre:/opt/java:ro
+      - ~/.local/share/signal-cli:/home/nanobot/.local/share/signal-cli
+      - ~/tmp:/home/nanobot/tmp
+    environment:
+      - JAVA_HOME=/opt/java
+      - PATH=/opt/java/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    command: ["gateway"]
