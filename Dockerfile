@@ -33,15 +33,18 @@ WORKDIR /app
 # Install Claude Code CLI
 RUN npm install -g @anthropic-ai/claude-code
 
-# Install signal-cli (Java-based, for Signal channel)
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends default-jre-headless && \
-    rm -rf /var/lib/apt/lists/* && \
+# Install signal-cli (Java-based, requires JRE 21+)
+RUN curl -sL "https://api.adoptium.net/v3/binary/latest/21/ga/linux/x64/jre/hotspot/normal/eclipse" \
+      -o /tmp/temurin-jre.tar.gz && \
+    tar xzf /tmp/temurin-jre.tar.gz -C /opt && \
+    ln -s /opt/jdk-*/bin/java /usr/local/bin/java && \
+    rm /tmp/temurin-jre.tar.gz && \
     curl -sL "https://github.com/AsamK/signal-cli/releases/download/v0.13.24/signal-cli-0.13.24.tar.gz" \
       -o /tmp/signal-cli.tar.gz && \
     tar xzf /tmp/signal-cli.tar.gz -C /opt && \
     ln -s /opt/signal-cli-0.13.24/bin/signal-cli /usr/local/bin/signal-cli && \
     rm /tmp/signal-cli.tar.gz
+ENV JAVA_HOME=/opt/jdk-21.0.10+7-jre
 
 # Create non-root user with UID 1000 to match host user
 RUN useradd -m -s /bin/bash -u 1000 nanobot
