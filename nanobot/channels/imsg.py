@@ -60,11 +60,14 @@ class ImsgChannel(BaseChannel):
         # Let's try a polling approach for simplicity and robustness first, 
         # as it's less likely to break if `imsg watch` behavior changes.
         
-        asyncio.create_task(self._poll_loop())
+        self._poll_task = asyncio.create_task(self._poll_loop())
 
     async def stop(self) -> None:
         """Stop the channel."""
         self._running = False
+        poll_task = getattr(self, "_poll_task", None)
+        if poll_task and not poll_task.done():
+            poll_task.cancel()
         if self._watch_process:
             try:
                 self._watch_process.terminate()
@@ -82,8 +85,11 @@ class ImsgChannel(BaseChannel):
         # msg.chat_id could be a phone number (+86...) or a chat rowid (123)
         # imsg send supports --to (handle) or --chat-id (rowid)
         
-        # Heuristic: if it looks like a number/email, use --to. If it looks like an int, use --chat-id.
+        # Validate and sanitize chat_id to prevent argument injection
         target = msg.chat_id
+        if target.startswith("-"):
+            logger.warning(f"Suspicious chat_id: {target}")
+            return
         if target.startswith("+") or "@" in target:
              cmd.extend(["--to", target])
         elif target.isdigit():
@@ -188,7 +194,7 @@ class ImsgChannel(BaseChannel):
                                 try:
                                     msg_data = json.loads(line)
                                     break 
-                                except:
+                                except json.JSONDecodeError:
                                     pass
                         
                         if not msg_data:

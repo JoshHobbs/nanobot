@@ -72,6 +72,7 @@ class CronService:
         self._store: CronStore | None = None
         self._timer_task: asyncio.Task | None = None
         self._running = False
+        self._store_lock: asyncio.Lock = asyncio.Lock()
     
     def _load_store(self) -> CronStore:
         """Load jobs from disk."""
@@ -210,6 +211,8 @@ class CronService:
         delay_s = delay_ms / 1000
         
         async def tick():
+            # Compute absolute wake time to prevent timer drift
+            wake_at = asyncio.get_event_loop().time() + delay_s
             await asyncio.sleep(delay_s)
             if self._running:
                 await self._on_timer()
@@ -220,18 +223,20 @@ class CronService:
         """Handle timer tick - run due jobs."""
         if not self._store:
             return
-        
-        now = _now_ms()
-        due_jobs = [
-            j for j in self._store.jobs
-            if j.enabled and j.state.next_run_at_ms and now >= j.state.next_run_at_ms
-        ]
-        
+
+        async with self._store_lock:
+            now = _now_ms()
+            due_jobs = [
+                j for j in self._store.jobs
+                if j.enabled and j.state.next_run_at_ms and now >= j.state.next_run_at_ms
+            ]
+
         for job in due_jobs:
             await self._execute_job(job)
-        
-        self._save_store()
-        self._arm_timer()
+
+        async with self._store_lock:
+            self._save_store()
+            self._arm_timer()
     
     async def _execute_job(self, job: CronJob) -> None:
         """Execute a single job."""
@@ -289,8 +294,9 @@ class CronService:
         _validate_schedule_for_add(schedule)
         now = _now_ms()
         
+        # Use full UUID to avoid ID collisions
         job = CronJob(
-            id=str(uuid.uuid4())[:8],
+            id=str(uuid.uuid4()),
             name=name,
             enabled=True,
             schedule=schedule,

@@ -1,6 +1,7 @@
 """Omi wearable channel — polls for new conversations and feeds them to the agent."""
 
 import asyncio
+from collections import OrderedDict
 from typing import Any
 
 import httpx
@@ -10,6 +11,8 @@ from nanobot.bus.events import OutboundMessage
 from nanobot.bus.queue import MessageBus
 from nanobot.channels.base import BaseChannel
 from nanobot.config.schema import OmiConfig
+
+_SEEN_IDS_MAX = 500
 
 
 class OmiClient:
@@ -80,6 +83,8 @@ class OmiClient:
                 headers=self._headers,
             )
             resp.raise_for_status()
+            if resp.status_code == 204 or not resp.content:
+                return {"status": "deleted"}
             return resp.json()
 
 
@@ -98,7 +103,7 @@ class OmiChannel(BaseChannel):
         super().__init__(config, bus)
         self.config: OmiConfig = config
         self.client = OmiClient(config.api_key, config.api_url)
-        self._seen_ids: set[str] = set()
+        self._seen_ids: OrderedDict[str, None] = OrderedDict()
 
     async def start(self) -> None:
         if self._running:
@@ -117,10 +122,11 @@ class OmiChannel(BaseChannel):
             for conv in existing:
                 cid = conv.get("id")
                 if cid:
-                    self._seen_ids.add(cid)
+                    self._seen_ids[cid] = None
             logger.info(f"Omi: seeded {len(self._seen_ids)} existing conversations")
         except Exception as e:
-            logger.warning(f"Omi: failed to seed conversations: {e}")
+            logger.warning(f"Omi: failed to seed conversations, marking channel as seeded anyway: {e}")
+            # Even on failure, continue - poll loop will just process all conversations as new
 
         await self._poll_loop()
 
@@ -149,7 +155,9 @@ class OmiChannel(BaseChannel):
                     cid = conv.get("id")
                     if not cid or cid in self._seen_ids:
                         continue
-                    self._seen_ids.add(cid)
+                    self._seen_ids[cid] = None
+                    while len(self._seen_ids) > _SEEN_IDS_MAX:
+                        self._seen_ids.popitem(last=False)
 
                     # Build message text from conversation
                     text = self._format_conversation(conv)
