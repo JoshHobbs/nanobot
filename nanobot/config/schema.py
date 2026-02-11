@@ -166,6 +166,16 @@ class OmiConfig(BaseModel):
     allow_from: list[str] = Field(default_factory=list)
 
 
+class NtfyConfig(BaseModel):
+    """ntfy pub/sub channel configuration."""
+    enabled: bool = False
+    server_url: str = "https://ntfy.sh"  # ntfy server URL
+    topic: str = ""  # Topic to subscribe/publish to
+    auth_token: str = ""  # Bearer token for protected topics
+    markdown: bool = True  # Send messages with markdown formatting
+    allow_from: list[str] = Field(default_factory=list)
+
+
 class ChannelsConfig(BaseModel):
     """Configuration for chat channels."""
     whatsapp: WhatsAppConfig = Field(default_factory=WhatsAppConfig)
@@ -174,6 +184,7 @@ class ChannelsConfig(BaseModel):
     feishu: FeishuConfig = Field(default_factory=FeishuConfig)
     mochat: MochatConfig = Field(default_factory=MochatConfig)
     dingtalk: DingTalkConfig = Field(default_factory=DingTalkConfig)
+    ntfy: NtfyConfig = Field(default_factory=NtfyConfig)
     email: EmailConfig = Field(default_factory=EmailConfig)
     slack: SlackConfig = Field(default_factory=SlackConfig)
     qq: QQConfig = Field(default_factory=QQConfig)
@@ -252,12 +263,34 @@ class TodoistConfig(BaseModel):
     api_token: str = ""  # Personal API token from https://app.todoist.com/prefs/integrations
 
 
+class ExistConfig(BaseModel):
+    """Exist.io personal analytics configuration."""
+    api_key: str = ""  # API key from https://exist.io/account/apps/
+
+
+class GoogleCalendarConfig(BaseModel):
+    """Google Calendar configuration (service account)."""
+    credentials_path: str = ""  # Path to service account JSON file
+    main_calendar_id: str = ""  # Primary calendar ID (read-only)
+    taskmaster_calendar_id: str = ""  # Taskmaster calendar ID (read/write)
+
+
+class SpotifyConfig(BaseModel):
+    """Spotify integration configuration."""
+    client_id: str = ""
+    client_secret: str = ""
+    refresh_token: str = ""  # OAuth2 refresh token (from initial auth flow)
+
+
 class ToolsConfig(BaseModel):
     """Tools configuration."""
     web: WebToolsConfig = Field(default_factory=WebToolsConfig)
     exec: ExecToolConfig = Field(default_factory=ExecToolConfig)
     google_maps: GoogleMapsConfig = Field(default_factory=GoogleMapsConfig)
     todoist: TodoistConfig = Field(default_factory=TodoistConfig)
+    exist: ExistConfig = Field(default_factory=ExistConfig)
+    google_calendar: GoogleCalendarConfig = Field(default_factory=GoogleCalendarConfig)
+    spotify: SpotifyConfig = Field(default_factory=SpotifyConfig)
     restrict_to_workspace: bool = False  # If true, restrict all tool access to workspace directory
 
 
