@@ -14,8 +14,6 @@ class Tool(ABC):
     
     _TYPE_MAP = {
         "string": str,
-        "integer": int,
-        "number": (int, float),
         "boolean": bool,
         "array": list,
         "object": dict,
@@ -61,6 +59,10 @@ class Tool(ABC):
 
     def _validate(self, val: Any, schema: dict[str, Any], path: str) -> list[str]:
         t, label = schema.get("type"), path or "parameter"
+        if t == "integer" and (not isinstance(val, int) or isinstance(val, bool)):
+            return [f"{label} should be integer"]
+        if t == "number" and (not isinstance(val, (int, float)) or isinstance(val, bool)):
+            return [f"{label} should be number"]
         if t in self._TYPE_MAP and not isinstance(val, self._TYPE_MAP[t]):
             return [f"{label} should be {t}"]
         
