@@ -22,10 +22,14 @@ class ExecTool(Tool):
     ):
         self.timeout = timeout
         self.working_dir = working_dir
-        self.deny_patterns = deny_patterns or [
+        # File-deletion patterns: allowed when all targets are inside workspace
+        self._file_deny_patterns = [
             r"\brm\s+-[rf]{1,2}\b",          # rm -r, rm -rf, rm -fr
             r"\bdel\s+/[fq]\b",              # del /f, del /q
             r"\brmdir\s+/s\b",               # rmdir /s
+        ]
+        # System-level patterns: always blocked regardless of workspace
+        self._system_deny_patterns = [
             r"(?:^|[;&|]\s*)format\b",       # format (as standalone command only)
             r"\b(mkfs|diskpart)\b",          # disk operations
             r"\bdd\s+if=",                   # dd
@@ -33,6 +37,7 @@ class ExecTool(Tool):
             r"\b(shutdown|reboot|poweroff)\b",  # system power
             r":\(\)\s*\{.*\};\s*:",          # fork bomb
         ]
+        self.deny_patterns = deny_patterns or (self._file_deny_patterns + self._system_deny_patterns)
         self.allow_patterns = allow_patterns or []
         self.restrict_to_workspace = restrict_to_workspace
     
@@ -66,13 +71,15 @@ class ExecTool(Tool):
         guard_error = self._guard_command(command, cwd)
         if guard_error:
             return guard_error
-        
+
         try:
+            env = self._build_env()
             process = await asyncio.create_subprocess_shell(
                 command,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=cwd,
+                env=env,
             )
             
             try:
@@ -120,8 +127,18 @@ class ExecTool(Tool):
         cmd = command.strip()
         lower = cmd.lower()
 
-        for pattern in self.deny_patterns:
+        workspace = Path(self.working_dir).resolve() if self.working_dir else None
+
+        # System-level patterns: always blocked
+        for pattern in self._system_deny_patterns:
             if re.search(pattern, lower):
+                return "Error: Command blocked by safety guard (dangerous pattern detected)"
+
+        # File-deletion patterns: relaxed when all targets are inside workspace
+        for pattern in self._file_deny_patterns:
+            if re.search(pattern, lower):
+                if workspace and self._targets_within_workspace(cmd, cwd, workspace):
+                    continue
                 return "Error: Command blocked by safety guard (dangerous pattern detected)"
 
         if self.allow_patterns:
@@ -149,3 +166,36 @@ class ExecTool(Tool):
                     return "Error: Command blocked by safety guard (path outside working dir)"
 
         return None
+
+    def _build_env(self) -> dict[str, str]:
+        """Build environment for subprocess, prepending workspace/bin to PATH."""
+        env = os.environ.copy()
+        if self.working_dir:
+            bin_dir = Path(self.working_dir) / "bin"
+            if bin_dir.is_dir():
+                env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", "")
+        return env
+
+    @staticmethod
+    def _targets_within_workspace(cmd: str, cwd: str, workspace: Path) -> bool:
+        """Check if all path arguments in a command resolve inside the workspace."""
+        import shlex
+        try:
+            parts = shlex.split(cmd)
+        except ValueError:
+            return False
+
+        # Skip the command name and any flags to find path arguments
+        args = [p for p in parts[1:] if not p.startswith("-")]
+        if not args:
+            # No explicit paths — command operates on cwd (e.g. "rm -rf *")
+            return Path(cwd).resolve().is_relative_to(workspace)
+
+        for arg in args:
+            try:
+                resolved = (Path(cwd) / arg).resolve()
+            except Exception:
+                return False
+            if not resolved.is_relative_to(workspace):
+                return False
+        return True
