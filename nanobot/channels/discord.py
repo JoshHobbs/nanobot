@@ -81,8 +81,9 @@ class DiscordChannel(BaseChannel):
         url = f"{DISCORD_API_BASE}/channels/{msg.chat_id}/messages"
         payload: dict[str, Any] = {"content": msg.content}
 
-        if msg.reply_to:
-            payload["message_reference"] = {"message_id": msg.reply_to}
+        reply_to = msg.reply_to or (msg.metadata.get("reply_to") if msg.metadata else None)
+        if reply_to:
+            payload["message_reference"] = {"message_id": reply_to}
             payload["allowed_mentions"] = {"replied_user": False}
 
         headers = {"Authorization": f"Bot {self.config.token}"}

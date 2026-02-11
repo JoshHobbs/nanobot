@@ -30,8 +30,16 @@ def _compute_next_run(schedule: CronSchedule, now_ms: int) -> int | None:
     if schedule.kind == "cron" and schedule.expr:
         try:
             from croniter import croniter
-            cron = croniter(schedule.expr, time.time())
-            next_time = cron.get_next()
+            if schedule.tz:
+                from datetime import datetime
+                from zoneinfo import ZoneInfo
+
+                base = datetime.fromtimestamp(now_ms / 1000, tz=ZoneInfo(schedule.tz))
+                next_time = croniter(schedule.expr, base).get_next(datetime)
+                return int(next_time.timestamp() * 1000)
+
+            cron = croniter(schedule.expr, now_ms / 1000)
+            next_time = cron.get_next(float)
             return int(next_time * 1000)
         except Exception:
             return None

@@ -518,7 +518,8 @@ Respond with ONLY valid JSON, no markdown fences."""
             channel=channel,
             sender_id="user",
             chat_id=chat_id,
-            content=content
+            content=content,
+            session_key_override=session_key,
         )
         
         response = await self._process_message(msg, session_key=session_key)
