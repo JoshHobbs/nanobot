@@ -97,6 +97,13 @@ cd nanobot
 pip install -e .
 ```
 
+**Enable pre-commit checks** (recommended)
+
+```bash
+pip install -e ".[dev]"
+pre-commit install
+```
+
 **Install with [uv](https://github.com/astral-sh/uv)** (stable, fast)
 
 ```bash
