@@ -1,10 +1,8 @@
-"""ntfy channel — subscribe to a topic for inbound messages, publish responses."""
+"""ntfy channel — output-only notification channel."""
 
 from __future__ import annotations
 
 import asyncio
-import json
-from typing import Any
 
 import httpx
 from loguru import logger
@@ -17,10 +15,11 @@ from nanobot.config.schema import NtfyConfig
 
 class NtfyChannel(BaseChannel):
     """
-    ntfy pub/sub channel.
+    ntfy output-only channel.
 
-    Subscribes to a topic via SSE for incoming messages and publishes
-    agent responses back to the same (or a different) topic.
+    Publishes agent messages to an ntfy topic as push notifications.
+    Does not subscribe for inbound — use the message tool to route
+    notifications here from other channels.
     """
 
     name: str = "ntfy"
@@ -29,7 +28,6 @@ class NtfyChannel(BaseChannel):
         super().__init__(config, bus)
         self.config: NtfyConfig = config
         self._base_url = config.server_url.rstrip("/")
-        self._subscribe_url = f"{self._base_url}/{config.topic}/sse"
         self._publish_url = f"{self._base_url}/{config.topic}"
 
     async def start(self) -> None:
@@ -41,17 +39,11 @@ class NtfyChannel(BaseChannel):
             return
 
         self._running = True
-        logger.info(f"Starting ntfy channel (topic: {self.config.topic})...")
+        logger.info(f"ntfy channel ready (topic: {self.config.topic})")
 
+        # Output-only — just idle until stopped
         while self._running:
-            try:
-                await self._sse_loop()
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"ntfy SSE connection error: {e}")
-                if self._running:
-                    await asyncio.sleep(5)
+            await asyncio.sleep(60)
 
     async def stop(self) -> None:
         self._running = False
@@ -85,51 +77,6 @@ class NtfyChannel(BaseChannel):
                 logger.debug(f"ntfy: published message ({len(msg.content)} chars)")
         except Exception as e:
             logger.error(f"ntfy: failed to publish message: {e}")
-
-    async def _sse_loop(self) -> None:
-        """Subscribe to the ntfy topic via SSE and process incoming messages."""
-        headers = self._auth_headers()
-
-        async with httpx.AsyncClient(timeout=None) as client:
-            async with client.stream(
-                "GET", self._subscribe_url, headers=headers
-            ) as resp:
-                resp.raise_for_status()
-                logger.info(f"ntfy: connected to {self._subscribe_url}")
-
-                async for line in resp.aiter_lines():
-                    if not self._running:
-                        break
-                    if not line or not line.startswith("data: "):
-                        continue
-
-                    try:
-                        data = json.loads(line[6:])
-                    except json.JSONDecodeError:
-                        continue
-
-                    if data.get("event") != "message":
-                        continue
-
-                    text = data.get("message", "").strip()
-                    if not text:
-                        continue
-
-                    sender = data.get("title", "ntfy")
-                    topic = data.get("topic", self.config.topic)
-
-                    logger.debug(f"ntfy: received message from {sender}: {text[:60]}...")
-
-                    await self._handle_message(
-                        sender_id=sender,
-                        chat_id=topic,
-                        content=text,
-                        metadata={
-                            "ntfy_id": data.get("id", ""),
-                            "priority": data.get("priority", 3),
-                            "tags": data.get("tags", []),
-                        },
-                    )
 
     def _auth_headers(self) -> dict[str, str]:
         headers: dict[str, str] = {}
