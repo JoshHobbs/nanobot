@@ -372,6 +372,9 @@ def gateway(
         omi_api_url=config.channels.omi.api_url,
         google_maps_api_key=config.tools.google_maps.api_key or None,
         todoist_api_token=config.tools.todoist.api_token or None,
+        exist_api_key=config.tools.exist.api_key or None,
+        google_calendar_config=config.tools.google_calendar,
+        spotify_config=config.tools.spotify,
     )
 
     # Set cron callback (needs agent)
@@ -492,6 +495,9 @@ def agent(
         omi_api_url=config.channels.omi.api_url,
         google_maps_api_key=config.tools.google_maps.api_key or None,
         todoist_api_token=config.tools.todoist.api_token or None,
+        exist_api_key=config.tools.exist.api_key or None,
+        google_calendar_config=config.tools.google_calendar,
+        spotify_config=config.tools.spotify,
     )
 
     # Show spinner when logs are off (no output to miss); skip when logs are on

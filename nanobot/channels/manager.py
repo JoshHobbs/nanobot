@@ -103,6 +103,17 @@ class ChannelManager:
             except ImportError as e:
                 logger.warning("DingTalk channel not available: {}", e)
 
+        # ntfy channel
+        if self.config.channels.ntfy.enabled:
+            try:
+                from nanobot.channels.ntfy import NtfyChannel
+                self.channels["ntfy"] = NtfyChannel(
+                    self.config.channels.ntfy, self.bus
+                )
+                logger.info("ntfy channel enabled")
+            except ImportError as e:
+                logger.warning(f"ntfy channel not available: {e}")
+
         # Email channel
         if self.config.channels.email.enabled:
             try:

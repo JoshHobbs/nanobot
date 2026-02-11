@@ -30,6 +30,9 @@ from nanobot.agent.tools.google_maps import (
     MapsDistanceMatrixTool, MapsPlaceDetailsTool,
 )
 from nanobot.agent.tools.todoist import TodoistTool
+from nanobot.agent.tools.exist import ExistTool
+from nanobot.agent.tools.google_calendar import GoogleCalendarTool
+from nanobot.agent.tools.spotify import SpotifyTool
 from nanobot.session.manager import Session, SessionManager
 
 if TYPE_CHECKING:
@@ -69,8 +72,11 @@ class AgentLoop:
         omi_api_url: str = "https://api.omi.me/v1/dev",
         google_maps_api_key: str | None = None,
         todoist_api_token: str | None = None,
+        exist_api_key: str | None = None,
+        google_calendar_config: "GoogleCalendarConfig | None" = None,
+        spotify_config: "SpotifyConfig | None" = None,
     ):
-        from nanobot.config.schema import ExecToolConfig
+        from nanobot.config.schema import ExecToolConfig, GoogleCalendarConfig, SpotifyConfig
         self.bus = bus
         self.provider = provider
         self.workspace = workspace
@@ -87,6 +93,9 @@ class AgentLoop:
         self.omi_api_url = omi_api_url
         self.google_maps_api_key = google_maps_api_key
         self.todoist_api_token = todoist_api_token
+        self.exist_api_key = exist_api_key
+        self.google_calendar_config = google_calendar_config or GoogleCalendarConfig()
+        self.spotify_config = spotify_config or SpotifyConfig()
 
         self.context = ContextBuilder(workspace)
         self.sessions = session_manager or SessionManager(workspace)
@@ -148,6 +157,26 @@ class AgentLoop:
 
         # Todoist tool (for task management)
         self.tools.register(TodoistTool(api_token=self.todoist_api_token))
+
+        # Exist.io tool (personal analytics)
+        if self.exist_api_key:
+            self.tools.register(ExistTool(api_key=self.exist_api_key))
+
+        # Google Calendar tool
+        if self.google_calendar_config.credentials_path:
+            self.tools.register(GoogleCalendarTool(
+                credentials_path=self.google_calendar_config.credentials_path,
+                main_calendar_id=self.google_calendar_config.main_calendar_id,
+                taskmaster_calendar_id=self.google_calendar_config.taskmaster_calendar_id,
+            ))
+
+        # Spotify tool (playback control)
+        if self.spotify_config.refresh_token:
+            self.tools.register(SpotifyTool(
+                client_id=self.spotify_config.client_id,
+                client_secret=self.spotify_config.client_secret,
+                refresh_token=self.spotify_config.refresh_token,
+            ))
 
     async def _connect_mcp(self) -> None:
         """Connect to configured MCP servers (one-time, lazy)."""
