@@ -17,7 +17,7 @@ class TodoistTool(Tool):
     description = (
         "Manage Todoist tasks and projects. "
         "Actions: get_tasks, create_task, update_task, complete_task, "
-        "delete_task, get_projects, create_project, get_task_comments, "
+        "get_projects, create_project, get_task_comments, "
         "add_task_comment"
     )
     parameters = {
@@ -30,7 +30,6 @@ class TodoistTool(Tool):
                     "create_task",
                     "update_task",
                     "complete_task",
-                    "delete_task",
                     "get_projects",
                     "create_project",
                     "get_task_comments",
@@ -40,7 +39,7 @@ class TodoistTool(Tool):
             },
             "task_id": {
                 "type": "string",
-                "description": "Task ID (for update, complete, delete, comments)",
+                "description": "Task ID (for update, complete, comments)",
             },
             "content": {
                 "type": "string",
@@ -152,8 +151,6 @@ class TodoistTool(Tool):
                 )
             elif action == "complete_task":
                 return await self._complete_task(task_id=task_id)
-            elif action == "delete_task":
-                return await self._delete_task(task_id=task_id)
             elif action == "get_projects":
                 return await self._get_projects()
             elif action == "create_project":
@@ -316,20 +313,6 @@ class TodoistTool(Tool):
             response.raise_for_status()
 
         return f"Completed task (ID: {task_id})"
-
-    async def _delete_task(self, task_id: str | None) -> str:
-        if not task_id:
-            return "Error: task_id is required to delete a task"
-
-        async with httpx.AsyncClient() as client:
-            response = await client.delete(
-                f"{BASE_URL}/tasks/{task_id}",
-                headers=self._get_headers(),
-                timeout=30.0,
-            )
-            response.raise_for_status()
-
-        return f"Deleted task (ID: {task_id})"
 
     async def _get_projects(self) -> str:
         async with httpx.AsyncClient() as client:

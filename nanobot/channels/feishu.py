@@ -230,8 +230,11 @@ class FeishuChannel(BaseChannel):
                     .build()
                 ).build()
             
-            response = self._client.im.v1.message.create(request)
-            
+            loop = asyncio.get_running_loop()
+            response = await loop.run_in_executor(
+                None, self._client.im.v1.message.create, request,
+            )
+
             if not response.success():
                 logger.error(
                     f"Failed to send Feishu message: code={response.code}, "
@@ -255,9 +258,13 @@ class FeishuChannel(BaseChannel):
         """Handle incoming message from Feishu."""
         try:
             event = data.event
+            if not event:
+                return
             message = event.message
             sender = event.sender
-            
+            if not message or not sender:
+                return
+
             # Deduplication check
             message_id = message.message_id
             if message_id in self._processed_message_ids:

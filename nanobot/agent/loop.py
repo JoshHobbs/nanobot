@@ -279,6 +279,9 @@ class AgentLoop:
             else:
                 # No tool calls, we're done
                 final_content = response.content
+                # Check if the LLM returned an error
+                if response.finish_reason == "error":
+                    logger.warning(f"LLM returned error: {final_content}")
                 break
         
         if final_content is None:

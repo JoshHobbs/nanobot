@@ -1,8 +1,8 @@
 """Google Maps tools — geocoding, place search, directions, and distance matrix."""
 
 import json
+import re
 from typing import Any
-from urllib.parse import urlencode
 
 import httpx
 
@@ -16,14 +16,20 @@ class GoogleMapsClient:
 
     def __init__(self, api_key: str):
         self.api_key = api_key
-        self._http = httpx.AsyncClient(timeout=15)
 
     async def _get(self, endpoint: str, params: dict[str, Any]) -> dict:
         params["key"] = self.api_key
-        url = f"{self.BASE}/{endpoint}?{urlencode(params, doseq=True)}"
-        resp = await self._http.get(url)
-        resp.raise_for_status()
-        return resp.json()
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.get(
+                    f"{self.BASE}/{endpoint}", params=params,
+                )
+                resp.raise_for_status()
+                return resp.json()
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(
+                f"Google Maps API error {e.response.status_code} for {endpoint}"
+            ) from e
 
 
 class MapsGeocodeTool(Tool):
@@ -71,6 +77,9 @@ class MapsGeocodeTool(Tool):
 
         if not address and lat is None:
             return "Error: provide 'address' for geocoding or 'lat'+'lng' for reverse geocoding."
+
+        if lat is not None and lng is None:
+            return "Error: 'lng' is required when 'lat' is provided."
 
         try:
             if address:
@@ -303,7 +312,6 @@ class MapsDirectionsTool(Tool):
                     for step in leg["steps"]:
                         # Strip HTML tags from instructions
                         instr = step.get("html_instructions", "")
-                        import re
                         instr = re.sub(r"<[^>]+>", " ", instr).strip()
                         instr = re.sub(r"\s+", " ", instr)
                         steps.append({
@@ -389,10 +397,8 @@ class MapsDistanceMatrixTool(Tool):
                 return f"Distance matrix failed: {data.get('status')} — {data.get('error_message', '')}"
 
             results = []
-            for i, origin in enumerate(data.get("origin_addresses", [])):
-                row = data["rows"][i]
-                for j, dest in enumerate(data.get("destination_addresses", [])):
-                    el = row["elements"][j]
+            for origin, row in zip(data.get("origin_addresses", []), data.get("rows", [])):
+                for dest, el in zip(data.get("destination_addresses", []), row.get("elements", [])):
                     entry: dict[str, Any] = {
                         "origin": origin,
                         "destination": dest,

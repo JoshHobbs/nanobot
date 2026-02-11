@@ -105,6 +105,7 @@ class DingTalkChannel(BaseChannel):
         # Access Token management for sending messages
         self._access_token: str | None = None
         self._token_expiry: float = 0
+        self._token_lock: asyncio.Lock = asyncio.Lock()
 
         # Hold references to background tasks to prevent GC
         self._background_tasks: set[asyncio.Task] = set()
@@ -167,27 +168,32 @@ class DingTalkChannel(BaseChannel):
         if self._access_token and time.time() < self._token_expiry:
             return self._access_token
 
-        url = "https://api.dingtalk.com/v1.0/oauth2/accessToken"
-        data = {
-            "appKey": self.config.client_id,
-            "appSecret": self.config.client_secret,
-        }
+        async with self._token_lock:
+            # Double-check after acquiring lock
+            if self._access_token and time.time() < self._token_expiry:
+                return self._access_token
 
-        if not self._http:
-            logger.warning("DingTalk HTTP client not initialized, cannot refresh token")
-            return None
+            url = "https://api.dingtalk.com/v1.0/oauth2/accessToken"
+            data = {
+                "appKey": self.config.client_id,
+                "appSecret": self.config.client_secret,
+            }
 
-        try:
-            resp = await self._http.post(url, json=data)
-            resp.raise_for_status()
-            res_data = resp.json()
-            self._access_token = res_data.get("accessToken")
-            # Expire 60s early to be safe
-            self._token_expiry = time.time() + int(res_data.get("expireIn", 7200)) - 60
-            return self._access_token
-        except Exception as e:
-            logger.error(f"Failed to get DingTalk access token: {e}")
-            return None
+            if not self._http:
+                logger.warning("DingTalk HTTP client not initialized, cannot refresh token")
+                return None
+
+            try:
+                resp = await self._http.post(url, json=data)
+                resp.raise_for_status()
+                res_data = resp.json()
+                self._access_token = res_data.get("accessToken")
+                # Expire 60s early to be safe
+                self._token_expiry = time.time() + int(res_data.get("expireIn", 7200)) - 60
+                return self._access_token
+            except Exception as e:
+                logger.error(f"Failed to get DingTalk access token: {e}")
+                return None
 
     async def send(self, msg: OutboundMessage) -> None:
         """Send a message through DingTalk."""

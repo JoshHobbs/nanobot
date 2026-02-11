@@ -37,8 +37,9 @@ def load_config(config_path: Path | None = None) -> Config:
             data = _migrate_config(data)
             return Config.model_validate(convert_keys(data))
         except (json.JSONDecodeError, ValueError) as e:
-            print(f"Warning: Failed to load config from {path}: {e}")
-            print("Using default configuration.")
+            from loguru import logger
+            logger.warning(f"Failed to load config from {path}: {e}")
+            logger.warning("Using default configuration.")
     
     return Config()
 
@@ -91,13 +92,18 @@ def convert_to_camel(data: Any) -> Any:
 
 
 def camel_to_snake(name: str) -> str:
-    """Convert camelCase to snake_case."""
-    result = []
-    for i, char in enumerate(name):
-        if char.isupper() and i > 0:
-            result.append("_")
-        result.append(char.lower())
-    return "".join(result)
+    """Convert camelCase to snake_case.
+
+    Handles consecutive uppercase (acronyms) correctly:
+    - apiURL -> api_url
+    - myHTTPClient -> my_http_client
+    """
+    import re
+    # Insert _ before a run of uppercase followed by a lowercase: HTTPClient -> HTTP_Client
+    s = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)
+    # Insert _ between lowercase/digit and uppercase: apiUrl -> api_Url
+    s = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s)
+    return s.lower()
 
 
 def snake_to_camel(name: str) -> str:

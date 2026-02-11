@@ -72,7 +72,8 @@ class SessionManager:
     
     def _get_session_path(self, key: str) -> Path:
         """Get the file path for a session."""
-        safe_key = safe_filename(key.replace(":", "_"))
+        # Use -- as separator instead of _ to avoid collision with keys containing underscores
+        safe_key = safe_filename(key.replace(":", "--"))
         return self.sessions_dir / f"{safe_key}.jsonl"
     
     def get_or_create(self, key: str) -> Session:
@@ -134,23 +135,32 @@ class SessionManager:
             return None
     
     def save(self, session: Session) -> None:
-        """Save a session to disk."""
+        """Save a session to disk (atomic write via temp file + rename)."""
+        import tempfile
         path = self._get_session_path(session.key)
-        
-        with open(path, "w") as f:
-            # Write metadata first
-            metadata_line = {
-                "_type": "metadata",
-                "created_at": session.created_at.isoformat(),
-                "updated_at": session.updated_at.isoformat(),
-                "metadata": session.metadata
-            }
-            f.write(json.dumps(metadata_line) + "\n")
-            
-            # Write messages
-            for msg in session.messages:
-                f.write(json.dumps(msg) + "\n")
-        
+
+        # Write to temp file in same directory, then atomic rename
+        fd, tmp_path = tempfile.mkstemp(dir=self.sessions_dir, suffix=".tmp")
+        try:
+            with open(fd, "w") as f:
+                # Write metadata first
+                metadata_line = {
+                    "_type": "metadata",
+                    "created_at": session.created_at.isoformat(),
+                    "updated_at": session.updated_at.isoformat(),
+                    "metadata": session.metadata
+                }
+                f.write(json.dumps(metadata_line) + "\n")
+
+                # Write messages
+                for msg in session.messages:
+                    f.write(json.dumps(msg) + "\n")
+
+            Path(tmp_path).replace(path)
+        except BaseException:
+            Path(tmp_path).unlink(missing_ok=True)
+            raise
+
         self._cache[session.key] = session
     
     def delete(self, key: str) -> bool:
@@ -191,7 +201,7 @@ class SessionManager:
                         data = json.loads(first_line)
                         if data.get("_type") == "metadata":
                             sessions.append({
-                                "key": path.stem.replace("_", ":"),
+                                "key": path.stem.replace("--", ":"),
                                 "created_at": data.get("created_at"),
                                 "updated_at": data.get("updated_at"),
                                 "path": str(path)

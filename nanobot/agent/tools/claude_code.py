@@ -48,6 +48,14 @@ class ClaudeCodeTool(Tool):
     async def execute(self, prompt: str, working_dir: str | None = None, **kwargs: Any) -> str:
         cwd = working_dir or self.working_dir or os.getcwd()
 
+        # Validate working_dir stays within the configured workspace
+        if self.working_dir and working_dir:
+            from pathlib import Path
+            resolved = Path(working_dir).expanduser().resolve()
+            workspace = Path(self.working_dir).resolve()
+            if not resolved.is_relative_to(workspace):
+                return f"Error: working_dir '{working_dir}' is outside the workspace"
+
         cmd = [
             "claude",
             "--print",
@@ -71,6 +79,7 @@ class ClaudeCodeTool(Tool):
                 )
             except asyncio.TimeoutError:
                 process.kill()
+                await process.wait()
                 return f"Error: Claude Code timed out after {self.timeout} seconds"
 
             output_parts = []

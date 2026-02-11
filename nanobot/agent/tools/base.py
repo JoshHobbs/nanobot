@@ -79,6 +79,8 @@ class Tool(ABC):
                 errors.append(f"{label} must be at most {schema['maxLength']} chars")
         if t == "object":
             props = schema.get("properties", {})
+            if val is None:
+                return [f"{label} should be object, got None"]
             for k in schema.get("required", []):
                 if k not in val:
                     errors.append(f"missing required {path + '.' + k if path else k}")

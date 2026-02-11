@@ -97,8 +97,13 @@ class DiscordChannel(BaseChannel):
                         logger.warning(f"Discord rate limited, retrying in {retry_after}s")
                         await asyncio.sleep(retry_after)
                         continue
+                    if 400 <= response.status_code < 500 and response.status_code != 429:
+                        logger.error(f"Discord client error {response.status_code}: {response.text}")
+                        return
                     response.raise_for_status()
                     return
+                except httpx.HTTPStatusError:
+                    raise
                 except Exception as e:
                     if attempt == 2:
                         logger.error(f"Error sending Discord message: {e}")
@@ -181,8 +186,10 @@ class DiscordChannel(BaseChannel):
 
         self._heartbeat_task = asyncio.create_task(heartbeat_loop())
 
-    async def _handle_message_create(self, payload: dict[str, Any]) -> None:
+    async def _handle_message_create(self, payload: dict[str, Any] | None) -> None:
         """Handle incoming Discord messages."""
+        if not payload:
+            return
         author = payload.get("author") or {}
         if author.get("bot"):
             return
@@ -245,11 +252,12 @@ class DiscordChannel(BaseChannel):
         async def typing_loop() -> None:
             url = f"{DISCORD_API_BASE}/channels/{channel_id}/typing"
             headers = {"Authorization": f"Bot {self.config.token}"}
-            while self._running:
+            while self._running and self._http:
                 try:
                     await self._http.post(url, headers=headers)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Typing indicator error for {channel_id}: {e}")
+                    break
                 await asyncio.sleep(8)
 
         self._typing_tasks[channel_id] = asyncio.create_task(typing_loop())

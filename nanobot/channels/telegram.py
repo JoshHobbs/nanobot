@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from loguru import logger
 from telegram import BotCommand, Update
@@ -113,6 +113,7 @@ class TelegramChannel(BaseChannel):
         self._app: Application | None = None
         self._chat_ids: dict[str, int] = {}  # Map sender_id to chat_id for replies
         self._typing_tasks: dict[str, asyncio.Task] = {}  # chat_id -> typing loop task
+        self._transcriber: Any | None = None  # Lazy-init GroqTranscriptionProvider
     
     async def start(self) -> None:
         """Start the Telegram bot with long polling."""
@@ -319,16 +320,18 @@ class TelegramChannel(BaseChannel):
                 media_dir = Path.home() / ".nanobot" / "media"
                 media_dir.mkdir(parents=True, exist_ok=True)
                 
-                file_path = media_dir / f"{media_file.file_id[:16]}{ext}"
+                unique_id = getattr(media_file, "file_unique_id", None) or media_file.file_id[:16]
+                file_path = media_dir / f"{unique_id}{ext}"
                 await file.download_to_drive(str(file_path))
                 
                 media_paths.append(str(file_path))
                 
                 # Handle voice transcription
                 if media_type == "voice" or media_type == "audio":
-                    from nanobot.providers.transcription import GroqTranscriptionProvider
-                    transcriber = GroqTranscriptionProvider(api_key=self.groq_api_key)
-                    transcription = await transcriber.transcribe(file_path)
+                    if self._transcriber is None:
+                        from nanobot.providers.transcription import GroqTranscriptionProvider
+                        self._transcriber = GroqTranscriptionProvider(api_key=self.groq_api_key)
+                    transcription = await self._transcriber.transcribe(file_path)
                     if transcription:
                         logger.info(f"Transcribed {media_type}: {transcription[:50]}...")
                         content_parts.append(f"[transcription: {transcription}]")

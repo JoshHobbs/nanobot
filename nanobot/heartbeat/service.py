@@ -25,13 +25,22 @@ def _is_heartbeat_empty(content: str | None) -> bool:
     
     # Lines to skip: empty, headers, HTML comments, empty checkboxes
     skip_patterns = {"- [ ]", "* [ ]", "- [x]", "* [x]"}
-    
+
+    in_html_comment = False
     for line in content.split("\n"):
         line = line.strip()
-        if not line or line.startswith("#") or line.startswith("<!--") or line in skip_patterns:
+        if in_html_comment:
+            if "-->" in line:
+                in_html_comment = False
+            continue
+        if line.startswith("<!--"):
+            if "-->" not in line:
+                in_html_comment = True
+            continue
+        if not line or line.startswith("#") or line in skip_patterns:
             continue
         return False  # Found actionable content
-    
+
     return True
 
 
@@ -126,5 +135,9 @@ class HeartbeatService:
     async def trigger_now(self) -> str | None:
         """Manually trigger a heartbeat."""
         if self.on_heartbeat:
-            return await self.on_heartbeat(HEARTBEAT_PROMPT)
+            try:
+                return await self.on_heartbeat(HEARTBEAT_PROMPT)
+            except Exception as e:
+                logger.error(f"Heartbeat trigger_now failed: {e}")
+                return None
         return None
