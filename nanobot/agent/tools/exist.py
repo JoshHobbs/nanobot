@@ -299,6 +299,8 @@ class ExistTool(Tool):
     ) -> str:
         if not name:
             return "Error: attribute name is required"
+        if not isinstance(value, (int, float)) or value == 0:
+            return "Error: value must be a non-zero number"
 
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(

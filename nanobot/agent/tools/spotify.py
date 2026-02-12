@@ -1,5 +1,6 @@
 """Spotify playback control tool."""
 
+import asyncio
 import time
 from typing import Any
 
@@ -78,28 +79,37 @@ class SpotifyTool(Tool):
         self.refresh_token = refresh_token
         self._access_token: str | None = None
         self._expires_at: float = 0
+        self._token_lock = asyncio.Lock()
 
     async def _get_token(self) -> str:
         """Get a valid access token, refreshing if needed."""
         if self._access_token and time.time() < self._expires_at - 60:
             return self._access_token
 
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(
-                TOKEN_URL,
-                data={
-                    "grant_type": "refresh_token",
-                    "refresh_token": self.refresh_token,
-                    "client_id": self.client_id,
-                    "client_secret": self.client_secret,
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
+        async with self._token_lock:
+            # Double-check after acquiring lock
+            if self._access_token and time.time() < self._expires_at - 60:
+                return self._access_token
 
-        self._access_token = data["access_token"]
-        self._expires_at = time.time() + data.get("expires_in", 3600)
-        return self._access_token
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    TOKEN_URL,
+                    data={
+                        "grant_type": "refresh_token",
+                        "refresh_token": self.refresh_token,
+                        "client_id": self.client_id,
+                        "client_secret": self.client_secret,
+                    },
+                )
+                resp.raise_for_status()
+                data = resp.json()
+
+            if "access_token" not in data:
+                raise RuntimeError(f"Spotify token refresh failed: {data}")
+
+            self._access_token = data["access_token"]
+            self._expires_at = time.time() + data.get("expires_in", 3600)
+            return self._access_token
 
     async def _headers(self) -> dict[str, str]:
         token = await self._get_token()

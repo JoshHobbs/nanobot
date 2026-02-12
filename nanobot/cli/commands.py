@@ -687,7 +687,7 @@ def cron_list(
     store_path = get_data_dir() / "cron" / "jobs.json"
     service = CronService(store_path)
     
-    jobs = service.list_jobs(include_disabled=all)
+    jobs = asyncio.run(service.list_jobs(include_disabled=all))
     
     if not jobs:
         console.print("No scheduled jobs.")
@@ -747,6 +747,9 @@ def cron_add(
     elif at:
         import datetime
         dt = datetime.datetime.fromisoformat(at)
+        if dt.tzinfo is None:
+            console.print("[yellow]Warning: no timezone in --at value, assuming UTC[/yellow]")
+            dt = dt.replace(tzinfo=datetime.timezone.utc)
         schedule = CronSchedule(kind="at", at_ms=int(dt.timestamp() * 1000))
     else:
         console.print("[red]Error: Must specify --every, --cron, or --at[/red]")
@@ -755,14 +758,14 @@ def cron_add(
     store_path = get_data_dir() / "cron" / "jobs.json"
     service = CronService(store_path)
     
-    job = service.add_job(
+    job = asyncio.run(service.add_job(
         name=name,
         schedule=schedule,
         message=message,
         deliver=deliver,
         to=to,
         channel=channel,
-    )
+    ))
     
     console.print(f"[green]✓[/green] Added job '{job.name}' ({job.id})")
 
@@ -778,7 +781,7 @@ def cron_remove(
     store_path = get_data_dir() / "cron" / "jobs.json"
     service = CronService(store_path)
     
-    if service.remove_job(job_id):
+    if asyncio.run(service.remove_job(job_id)):
         console.print(f"[green]✓[/green] Removed job {job_id}")
     else:
         console.print(f"[red]Job {job_id} not found[/red]")
@@ -796,7 +799,7 @@ def cron_enable(
     store_path = get_data_dir() / "cron" / "jobs.json"
     service = CronService(store_path)
     
-    job = service.enable_job(job_id, enabled=not disable)
+    job = asyncio.run(service.enable_job(job_id, enabled=not disable))
     if job:
         status = "disabled" if disable else "enabled"
         console.print(f"[green]✓[/green] Job '{job.name}' {status}")

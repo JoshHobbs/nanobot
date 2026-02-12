@@ -83,7 +83,10 @@ class DiscordChannel(BaseChannel):
 
         reply_to = msg.reply_to or (msg.metadata.get("reply_to") if msg.metadata else None)
         if reply_to:
-            payload["message_reference"] = {"message_id": reply_to}
+            payload["message_reference"] = {
+                "message_id": reply_to,
+                "fail_if_not_exists": False,
+            }
             payload["allowed_mentions"] = {"replied_user": False}
 
         headers = {"Authorization": f"Bot {self.config.token}"}
@@ -96,6 +99,9 @@ class DiscordChannel(BaseChannel):
                         data = response.json()
                         retry_after = float(data.get("retry_after", 1.0))
                         logger.warning(f"Discord rate limited, retrying in {retry_after}s")
+                        if attempt == 2:
+                            logger.error("Discord message dropped after 3 rate-limited retries")
+                            return
                         await asyncio.sleep(retry_after)
                         continue
                     if 400 <= response.status_code < 500 and response.status_code != 429:

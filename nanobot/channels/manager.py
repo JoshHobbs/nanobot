@@ -19,20 +19,21 @@ if TYPE_CHECKING:
 class ChannelManager:
     """
     Manages chat channels and coordinates message routing.
-    
+
     Responsibilities:
     - Initialize enabled channels (Telegram, WhatsApp, etc.)
     - Start/stop channels
     - Route outbound messages
     """
-    
+
     def __init__(self, config: Config, bus: MessageBus, session_manager: "SessionManager | None" = None):
         self.config = config
         self.bus = bus
         self.session_manager = session_manager
         self.channels: dict[str, BaseChannel] = {}
         self._dispatch_task: asyncio.Task | None = None
-        
+        self._active = False
+
         self._init_channels()
     
     def _init_channels(self) -> None:
@@ -187,32 +188,46 @@ class ChannelManager:
                 logger.warning(f"Omi channel not available: {e}")
     
     async def _start_channel(self, name: str, channel: BaseChannel) -> None:
-        """Start a channel and log any exceptions."""
-        try:
-            await channel.start()
-        except Exception as e:
-            logger.error(f"Failed to start channel {name}: {e}")
+        """Start a channel with automatic restart on crash."""
+        backoff = 5
+        max_backoff = 300
+        while self._active:
+            try:
+                await channel.start()
+                break  # clean exit
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Channel {name} crashed: {e}")
+                if not self._active:
+                    break
+                logger.info(f"Restarting {name} channel in {backoff}s...")
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, max_backoff)
 
     async def start_all(self) -> None:
         """Start all channels and the outbound dispatcher."""
         if not self.channels:
             logger.warning("No channels enabled")
             return
-        
+
+        self._active = True
+
         # Start outbound dispatcher
         self._dispatch_task = asyncio.create_task(self._dispatch_outbound())
-        
+
         # Start channels
         tasks = []
         for name, channel in self.channels.items():
             logger.info(f"Starting {name} channel...")
             tasks.append(asyncio.create_task(self._start_channel(name, channel)))
-        
+
         # Wait for all to complete (they should run forever)
         await asyncio.gather(*tasks, return_exceptions=True)
-    
+
     async def stop_all(self) -> None:
         """Stop all channels and the dispatcher."""
+        self._active = False
         logger.info("Stopping all channels...")
         
         # Stop dispatcher

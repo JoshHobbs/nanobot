@@ -29,6 +29,8 @@ class NtfyChannel(BaseChannel):
         self.config: NtfyConfig = config
         self._base_url = config.server_url.rstrip("/")
         self._publish_url = f"{self._base_url}/{config.topic}"
+        self._stop_event: asyncio.Event = asyncio.Event()
+        self._http: httpx.AsyncClient | None = None
 
     async def start(self) -> None:
         if self._running:
@@ -39,18 +41,27 @@ class NtfyChannel(BaseChannel):
             return
 
         self._running = True
+        self._stop_event.clear()
+        self._http = httpx.AsyncClient(timeout=15)
         logger.info(f"ntfy channel ready (topic: {self.config.topic})")
 
         # Output-only — just idle until stopped
-        while self._running:
-            await asyncio.sleep(60)
+        await self._stop_event.wait()
 
     async def stop(self) -> None:
         self._running = False
+        self._stop_event.set()
+        if self._http:
+            await self._http.aclose()
+            self._http = None
 
     async def send(self, msg: OutboundMessage) -> None:
         """Publish a message to the ntfy topic."""
         if not msg.content:
+            return
+
+        if not self._http:
+            logger.warning("ntfy HTTP client not initialized")
             return
 
         headers = self._auth_headers()
@@ -67,14 +78,13 @@ class NtfyChannel(BaseChannel):
             headers["Title"] = title
 
         try:
-            async with httpx.AsyncClient(timeout=15) as client:
-                resp = await client.post(
-                    self._publish_url,
-                    headers=headers,
-                    content=msg.content.encode("utf-8"),
-                )
-                resp.raise_for_status()
-                logger.debug(f"ntfy: published message ({len(msg.content)} chars)")
+            resp = await self._http.post(
+                self._publish_url,
+                headers=headers,
+                content=msg.content.encode("utf-8"),
+            )
+            resp.raise_for_status()
+            logger.debug(f"ntfy: published message ({len(msg.content)} chars)")
         except Exception as e:
             logger.error(f"ntfy: failed to publish message: {e}")
 

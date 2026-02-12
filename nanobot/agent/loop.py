@@ -101,6 +101,7 @@ class AgentLoop:
         )
         
         self._running = False
+        self._processing_lock = asyncio.Lock()
         self._register_default_tools()
     
     def _register_default_tools(self) -> None:
@@ -191,9 +192,10 @@ class AgentLoop:
                     timeout=1.0
                 )
                 
-                # Process it
+                # Process it (lock prevents interleaving with cron/direct calls)
                 try:
-                    response = await self._process_message(msg)
+                    async with self._processing_lock:
+                        response = await self._process_message(msg)
                     if response:
                         await self.bus.publish_outbound(response)
                 except Exception as e:
@@ -212,14 +214,13 @@ class AgentLoop:
         self._running = False
         logger.info("Agent loop stopping")
     
-    async def _process_message(self, msg: InboundMessage, session_key: str | None = None) -> OutboundMessage | None:
+    async def _process_message(self, msg: InboundMessage) -> OutboundMessage | None:
         """
         Process a single inbound message.
-        
+
         Args:
             msg: The inbound message to process.
-            session_key: Override session key (used by process_direct).
-        
+
         Returns:
             The response message, or None if no response needed.
         """
@@ -227,12 +228,12 @@ class AgentLoop:
         # The chat_id contains the original "channel:chat_id" to route back to
         if msg.channel == "system":
             return await self._process_system_message(msg)
-        
+
         preview = msg.content[:80] + "..." if len(msg.content) > 80 else msg.content
         logger.info(f"Processing message from {msg.channel}:{msg.sender_id}: {preview}")
-        
+
         # Get or create session
-        session = self.sessions.get_or_create(session_key or msg.session_key)
+        session = self.sessions.get_or_create(msg.session_key)
         
         # Consolidate memory before processing if session is too large
         if len(session.messages) > self.memory_window:
@@ -521,6 +522,7 @@ Respond with ONLY valid JSON, no markdown fences."""
             content=content,
             session_key_override=session_key,
         )
-        
-        response = await self._process_message(msg, session_key=session_key)
+
+        async with self._processing_lock:
+            response = await self._process_message(msg)
         return response.content if response else ""
