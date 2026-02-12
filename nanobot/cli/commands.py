@@ -386,6 +386,10 @@ def gateway(
             channel=job.payload.channel or "cli",
             chat_id=job.payload.to or "direct",
         )
+        # Detect LLM errors so cron records them as failures
+        from nanobot.providers.base import LLM_ERROR_PREFIX
+        if response and response.startswith(LLM_ERROR_PREFIX):
+            raise RuntimeError(response)
         if job.payload.deliver and job.payload.to:
             from nanobot.bus.events import OutboundMessage
             await bus.publish_outbound(OutboundMessage(

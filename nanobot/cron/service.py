@@ -107,6 +107,7 @@ class CronService:
                             last_run_at_ms=j.get("state", {}).get("lastRunAtMs"),
                             last_status=j.get("state", {}).get("lastStatus"),
                             last_error=j.get("state", {}).get("lastError"),
+                            consecutive_failures=j.get("state", {}).get("consecutiveFailures", 0),
                         ),
                         created_at_ms=j.get("createdAtMs", 0),
                         updated_at_ms=j.get("updatedAtMs", 0),
@@ -154,6 +155,7 @@ class CronService:
                         "lastRunAtMs": j.state.last_run_at_ms,
                         "lastStatus": j.state.last_status,
                         "lastError": j.state.last_error,
+                        "consecutiveFailures": j.state.consecutive_failures,
                     },
                     "createdAtMs": j.created_at_ms,
                     "updatedAtMs": j.updated_at_ms,
@@ -238,28 +240,40 @@ class CronService:
             self._save_store()
             self._arm_timer()
     
+    # Disable job after this many consecutive failures
+    MAX_CONSECUTIVE_FAILURES = 3
+
     async def _execute_job(self, job: CronJob) -> None:
         """Execute a single job."""
         start_ms = _now_ms()
         logger.info("Cron: executing job '{}' ({})", job.name, job.id)
-        
+
         try:
             response = None
             if self.on_job:
                 response = await self.on_job(job)
-            
+
             job.state.last_status = "ok"
             job.state.last_error = None
+            job.state.consecutive_failures = 0
             logger.info("Cron: job '{}' completed", job.name)
-            
+
         except Exception as e:
             job.state.last_status = "error"
             job.state.last_error = str(e)
-            logger.error("Cron: job '{}' failed: {}", job.name, e)
-        
+            job.state.consecutive_failures += 1
+            logger.error("Cron: job '{}' failed ({}/{}): {}", job.name, job.state.consecutive_failures, self.MAX_CONSECUTIVE_FAILURES, e)
+
         job.state.last_run_at_ms = start_ms
         job.updated_at_ms = _now_ms()
-        
+
+        # Circuit breaker: disable after repeated failures
+        if job.state.consecutive_failures >= self.MAX_CONSECUTIVE_FAILURES:
+            job.enabled = False
+            job.state.next_run_at_ms = None
+            logger.warning("Cron: disabled job '{}' ({}) after {} consecutive failures", job.name, job.id, job.state.consecutive_failures)
+            return
+
         # Handle one-shot jobs
         if job.schedule.kind == "at":
             if job.delete_after_run:
@@ -342,6 +356,7 @@ class CronService:
                 job.enabled = enabled
                 job.updated_at_ms = _now_ms()
                 if enabled:
+                    job.state.consecutive_failures = 0
                     job.state.next_run_at_ms = _compute_next_run(job.schedule, _now_ms())
                 else:
                     job.state.next_run_at_ms = None
