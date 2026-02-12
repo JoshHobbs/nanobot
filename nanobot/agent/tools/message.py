@@ -21,6 +21,7 @@ class MessageTool(Tool):
         self._default_chat_id = default_chat_id
         self._default_message_id = default_message_id
         self._sent_in_turn: bool = False
+        self._available_channels: list[str] = []
 
     def set_context(self, channel: str, chat_id: str, message_id: str | None = None) -> None:
         """Set the current message context."""
@@ -36,6 +37,10 @@ class MessageTool(Tool):
         """Reset per-turn send tracking."""
         self._sent_in_turn = False
 
+    def set_available_channels(self, channels: list[str]) -> None:
+        """Set the list of enabled channels for tool description."""
+        self._available_channels = channels
+
     @property
     def name(self) -> str:
         return "message"
@@ -46,6 +51,10 @@ class MessageTool(Tool):
 
     @property
     def parameters(self) -> dict[str, Any]:
+        if self._available_channels:
+            channel_desc = f"Target channel. Available: {', '.join(self._available_channels)}"
+        else:
+            channel_desc = "Target channel (e.g. telegram, discord, ntfy)"
         return {
             "type": "object",
             "properties": {
@@ -55,11 +64,11 @@ class MessageTool(Tool):
                 },
                 "channel": {
                     "type": "string",
-                    "description": "Optional: target channel (telegram, discord, etc.)"
+                    "description": channel_desc
                 },
                 "chat_id": {
                     "type": "string",
-                    "description": "Optional: target chat/user ID"
+                    "description": "Target chat/user ID (for output-only channels like ntfy, use any value)"
                 },
                 "media": {
                     "type": "array",
