@@ -5,7 +5,7 @@ import json
 from typing import Any
 
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
 
 def _b64url(data: bytes) -> str:
@@ -19,6 +19,8 @@ def rs256_sign(header: dict[str, Any], payload: dict[str, Any], private_key_pem:
     signing_input = f"{header_b64}.{payload_b64}".encode("ascii")
 
     key = serialization.load_pem_private_key(private_key_pem.encode(), password=None)
+    if not isinstance(key, rsa.RSAPrivateKey):
+        raise ValueError("Expected RSA private key for RS256 signing")
     signature = key.sign(signing_input, padding.PKCS1v15(), hashes.SHA256())
 
     return f"{header_b64}.{payload_b64}.{_b64url(signature)}"

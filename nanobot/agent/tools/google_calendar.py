@@ -40,10 +40,6 @@ class _ServiceAccountAuth:
         now = int(time.time())
 
         # Build JWT
-        import base64
-        import hashlib
-        import hmac
-
         header = {"alg": "RS256", "typ": "JWT"}
         payload = {
             "iss": creds["client_email"],
@@ -206,6 +202,8 @@ class GoogleCalendarTool(Tool):
         self, calendar: str, days_ahead: int, days_behind: int,
     ) -> str:
         cal_id = self._calendar_id(calendar)
+        if not cal_id:
+            return f"Error: {calendar} calendar ID not configured"
         now = datetime.now().astimezone()
         time_min = (now - timedelta(days=days_behind)).isoformat()
         time_max = (now + timedelta(days=days_ahead)).isoformat()
@@ -279,6 +277,8 @@ class GoogleCalendarTool(Tool):
             body["location"] = location
 
         cal_id = self._calendar_id("taskmaster")
+        if not cal_id:
+            return "Error: taskmaster calendar ID not configured"
         headers = await self._headers()
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
@@ -319,6 +319,8 @@ class GoogleCalendarTool(Tool):
             return "Error: at least one field to update is required"
 
         cal_id = self._calendar_id("taskmaster")
+        if not cal_id:
+            return "Error: taskmaster calendar ID not configured"
         headers = await self._headers()
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.patch(
@@ -340,6 +342,8 @@ class GoogleCalendarTool(Tool):
             return "Error: event_id is required"
 
         cal_id = self._calendar_id("taskmaster")
+        if not cal_id:
+            return "Error: taskmaster calendar ID not configured"
         headers = await self._headers()
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.delete(
