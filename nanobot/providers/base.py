@@ -4,6 +4,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
+# Sentinel prefix used when returning LLM errors as content
+LLM_ERROR_PREFIX = "Error calling LLM:"
+
 
 @dataclass
 class ToolCallRequest:
