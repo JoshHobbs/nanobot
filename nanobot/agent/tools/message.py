@@ -8,9 +8,9 @@ from nanobot.bus.events import OutboundMessage
 
 class MessageTool(Tool):
     """Tool to send messages to users on chat channels."""
-    
+
     def __init__(
-        self, 
+        self,
         send_callback: Callable[[OutboundMessage], Awaitable[None]] | None = None,
         default_channel: str = "",
         default_chat_id: str = ""
@@ -18,26 +18,35 @@ class MessageTool(Tool):
         self._send_callback = send_callback
         self._default_channel = default_channel
         self._default_chat_id = default_chat_id
-    
+        self._available_channels: list[str] = []
+
     def set_context(self, channel: str, chat_id: str) -> None:
         """Set the current message context."""
         self._default_channel = channel
         self._default_chat_id = chat_id
-    
+
     def set_send_callback(self, callback: Callable[[OutboundMessage], Awaitable[None]]) -> None:
         """Set the callback for sending messages."""
         self._send_callback = callback
-    
+
+    def set_available_channels(self, channels: list[str]) -> None:
+        """Set the list of enabled channels for tool description."""
+        self._available_channels = channels
+
     @property
     def name(self) -> str:
         return "message"
-    
+
     @property
     def description(self) -> str:
         return "Send a message to the user. Use this when you want to communicate something."
-    
+
     @property
     def parameters(self) -> dict[str, Any]:
+        if self._available_channels:
+            channel_desc = f"Target channel. Available: {', '.join(self._available_channels)}"
+        else:
+            channel_desc = "Target channel (e.g. telegram, discord, ntfy)"
         return {
             "type": "object",
             "properties": {
@@ -47,11 +56,11 @@ class MessageTool(Tool):
                 },
                 "channel": {
                     "type": "string",
-                    "description": "Optional: target channel (telegram, discord, etc.)"
+                    "description": channel_desc
                 },
                 "chat_id": {
                     "type": "string",
-                    "description": "Optional: target chat/user ID"
+                    "description": "Target chat/user ID (for output-only channels like ntfy, use any value)"
                 }
             },
             "required": ["content"]

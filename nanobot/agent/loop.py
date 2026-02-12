@@ -209,6 +209,12 @@ class AgentLoop:
             except asyncio.TimeoutError:
                 continue
     
+    def set_available_channels(self, channels: list[str]) -> None:
+        """Tell the message tool which channels are enabled."""
+        message_tool = self.tools.get("message")
+        if isinstance(message_tool, MessageTool):
+            message_tool.set_available_channels(channels)
+
     def stop(self) -> None:
         """Stop the agent loop."""
         self._running = False

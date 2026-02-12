@@ -383,6 +383,7 @@ def gateway(
     channels = ChannelManager(config, bus, session_manager=session_manager)
     
     if channels.enabled_channels:
+        agent.set_available_channels(channels.enabled_channels)
         console.print(f"[green]✓[/green] Channels enabled: {', '.join(channels.enabled_channels)}")
     else:
         console.print("[yellow]Warning: No channels enabled[/yellow]")
