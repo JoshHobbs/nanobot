@@ -33,6 +33,7 @@ from nanobot.agent.tools.todoist import TodoistTool
 from nanobot.agent.tools.exist import ExistTool
 from nanobot.agent.tools.google_calendar import GoogleCalendarTool
 from nanobot.agent.tools.spotify import SpotifyTool
+from nanobot.metrics.usage import UsageTracker
 from nanobot.session.manager import Session, SessionManager
 
 if TYPE_CHECKING:
@@ -119,6 +120,7 @@ class AgentLoop:
         self._mcp_connected = False
         self._mcp_connecting = False
         self._consolidating: set[str] = set()  # Session keys with consolidation in progress
+        self._usage = UsageTracker()
         self._register_default_tools()
 
     def _register_default_tools(self) -> None:
@@ -252,6 +254,7 @@ class AgentLoop:
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
             )
+            self._usage.record(self.model, response.usage)
 
             if response.has_tool_calls:
                 if on_progress:
