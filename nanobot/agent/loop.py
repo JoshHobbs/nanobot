@@ -31,6 +31,7 @@ from nanobot.agent.tools.google_calendar import GoogleCalendarTool
 from nanobot.agent.tools.spotify import SpotifyTool
 from nanobot.agent.subagent import SubagentManager
 from nanobot.session.manager import SessionManager
+from nanobot.metrics.usage import UsageTracker
 
 
 class AgentLoop:
@@ -102,6 +103,7 @@ class AgentLoop:
         
         self._running = False
         self._processing_lock = asyncio.Lock()
+        self._usage = UsageTracker()
         self._register_default_tools()
     
     def _register_default_tools(self) -> None:
@@ -281,7 +283,8 @@ class AgentLoop:
                 tools=self.tools.get_definitions(),
                 model=self.model
             )
-            
+            self._usage.record(self.model, response.usage)
+
             # Handle tool calls
             if response.has_tool_calls:
                 # Add assistant message with tool calls
@@ -396,7 +399,8 @@ class AgentLoop:
                 tools=self.tools.get_definitions(),
                 model=self.model
             )
-            
+            self._usage.record(self.model, response.usage)
+
             if response.has_tool_calls:
                 tool_call_dicts = [
                     {
@@ -413,7 +417,7 @@ class AgentLoop:
                     messages, response.content, tool_call_dicts,
                     reasoning_content=response.reasoning_content,
                 )
-                
+
                 for tool_call in response.tool_calls:
                     args_str = json.dumps(tool_call.arguments, ensure_ascii=False)
                     logger.info(f"Tool call: {tool_call.name}({args_str[:200]})")
@@ -426,7 +430,7 @@ class AgentLoop:
             else:
                 final_content = response.content
                 break
-        
+
         if final_content is None:
             final_content = "Background task completed."
         
