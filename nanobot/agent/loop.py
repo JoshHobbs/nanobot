@@ -202,6 +202,12 @@ class AgentLoop:
         finally:
             self._mcp_connecting = False
 
+    def set_available_channels(self, channels: list[str]) -> None:
+        """Expose enabled channel names to the message tool."""
+        if message_tool := self.tools.get("message"):
+            if isinstance(message_tool, MessageTool):
+                message_tool.set_available_channels(channels)
+
     def _set_tool_context(self, channel: str, chat_id: str, message_id: str | None = None) -> None:
         """Update context for all tools that need routing info."""
         if message_tool := self.tools.get("message"):

@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,7 @@ from nanobot.bus.queue import MessageBus
 from nanobot.channels.discord import DiscordChannel
 from nanobot.config.schema import DiscordConfig
 from nanobot.cron.service import _compute_next_run
+from nanobot.cron.service import CronService
 from nanobot.cron.types import CronSchedule
 from nanobot.providers.base import LLMProvider, LLMResponse
 
@@ -205,3 +207,31 @@ def test_compute_next_run_cron_honors_timezone() -> None:
 
     expected_ms = _ms(datetime(2026, 2, 11, 14, 0, tzinfo=timezone.utc))
     assert next_run_ms == expected_ms
+
+
+async def test_run_job_cancellation_does_not_raise_unboundlocalerror(tmp_path: Path) -> None:
+    started = asyncio.Event()
+    blocked = asyncio.Event()
+
+    async def on_job(_) -> str | None:
+        started.set()
+        await blocked.wait()
+        return "ok"
+
+    service = CronService(tmp_path / "jobs.json", on_job=on_job)
+    job = await service.add_job(
+        name="cancel-test",
+        schedule=CronSchedule(kind="every", every_ms=1000),
+        message="test",
+    )
+
+    task = asyncio.create_task(service.run_job(job.id, force=True))
+    await asyncio.wait_for(started.wait(), timeout=1.0)
+    task.cancel()
+
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    else:
+        assert False, "Expected CancelledError from cancelled run_job task"
