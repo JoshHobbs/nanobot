@@ -34,7 +34,10 @@ WORKDIR /app
 RUN npm install -g @anthropic-ai/claude-code
 
 # Install signal-cli (Java-based, requires JRE 21+)
-RUN curl -sL "https://api.adoptium.net/v3/binary/latest/21/ga/linux/x64/jre/hotspot/normal/eclipse" \
+# Use TARGETARCH to pick the right JRE and native library for the build platform
+ARG TARGETARCH
+RUN ADOPTIUM_ARCH=$(case "${TARGETARCH:-amd64}" in arm64) echo aarch64;; *) echo x64;; esac) && \
+    curl -sL "https://api.adoptium.net/v3/binary/latest/21/ga/linux/${ADOPTIUM_ARCH}/jre/hotspot/normal/eclipse" \
       -o /tmp/temurin-jre.tar.gz && \
     tar xzf /tmp/temurin-jre.tar.gz -C /opt && \
     ln -s /opt/jdk-*/bin/java /usr/local/bin/java && \
@@ -44,7 +47,18 @@ RUN curl -sL "https://api.adoptium.net/v3/binary/latest/21/ga/linux/x64/jre/hots
     tar xzf /tmp/signal-cli.tar.gz -C /opt && \
     ln -s /opt/signal-cli-0.13.24/bin/signal-cli /usr/local/bin/signal-cli && \
     rm /tmp/signal-cli.tar.gz
-ENV JAVA_HOME=/opt/jdk-21.0.10+7-jre
+# JAVA_HOME not needed — signal-cli finds java via PATH symlink above
+
+# Patch in aarch64 Linux native library for libsignal-client (not shipped by upstream)
+# Pre-built by https://github.com/exquo/signal-libs-build
+RUN if [ "$(uname -m)" = "aarch64" ]; then \
+      LIBSIGNAL_VERSION=$(ls /opt/signal-cli-0.13.24/lib/libsignal-client-*.jar | sed 's/.*libsignal-client-\(.*\)\.jar/\1/') && \
+      curl -sL "https://github.com/exquo/signal-libs-build/releases/download/libsignal_v${LIBSIGNAL_VERSION}/libsignal_jni.so-v${LIBSIGNAL_VERSION}-aarch64-unknown-linux-gnu.tar.gz" \
+        | tar xzf - -C /tmp && \
+      mv /tmp/libsignal_jni.so /tmp/libsignal_jni_aarch64.so && \
+      python3 -c "import zipfile; z=zipfile.ZipFile('/opt/signal-cli-0.13.24/lib/libsignal-client-${LIBSIGNAL_VERSION}.jar','a'); z.write('/tmp/libsignal_jni_aarch64.so','libsignal_jni_aarch64.so'); z.close()" && \
+      rm -f /tmp/libsignal_jni* ; \
+    fi
 
 # Create non-root user with UID 1000 to match host user
 RUN useradd -m -s /bin/bash -u 1000 nanobot
