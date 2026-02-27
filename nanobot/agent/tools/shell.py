@@ -19,6 +19,7 @@ class ExecTool(Tool):
         deny_patterns: list[str] | None = None,
         allow_patterns: list[str] | None = None,
         restrict_to_workspace: bool = False,
+        path_append: str = "",
     ):
         self.timeout = timeout
         self.working_dir = working_dir
@@ -40,6 +41,7 @@ class ExecTool(Tool):
         self.deny_patterns = deny_patterns or (self._file_deny_patterns + self._system_deny_patterns)
         self.allow_patterns = allow_patterns or []
         self.restrict_to_workspace = restrict_to_workspace
+        self.path_append = path_append
     
     @property
     def name(self) -> str:
@@ -174,6 +176,8 @@ class ExecTool(Tool):
             bin_dir = Path(self.working_dir) / "bin"
             if bin_dir.is_dir():
                 env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", "")
+        if self.path_append:
+            env["PATH"] = env.get("PATH", "") + os.pathsep + self.path_append
         return env
 
     @staticmethod

@@ -3,6 +3,8 @@
 import json
 import json_repair
 import os
+import secrets
+import string
 from typing import Any
 
 import litellm
@@ -12,8 +14,14 @@ from nanobot.providers.base import LLM_ERROR_PREFIX, LLMProvider, LLMResponse, T
 from nanobot.providers.registry import find_by_model, find_gateway
 
 
-# Standard OpenAI chat-completion message keys; extras (e.g. reasoning_content) are stripped for strict providers.
-_ALLOWED_MSG_KEYS = frozenset({"role", "content", "tool_calls", "tool_call_id", "name"})
+# Standard OpenAI chat-completion message keys plus reasoning_content for
+# thinking-enabled models (Kimi k2.5, DeepSeek-R1, etc.).
+_ALLOWED_MSG_KEYS = frozenset({"role", "content", "tool_calls", "tool_call_id", "name", "reasoning_content"})
+_ALNUM = string.ascii_letters + string.digits
+
+def _short_tool_id() -> str:
+    """Generate a 9-char alphanumeric ID compatible with all providers (incl. Mistral)."""
+    return "".join(secrets.choice(_ALNUM) for _ in range(9))
 
 
 class LiteLLMProvider(LLMProvider):
@@ -196,7 +204,7 @@ class LiteLLMProvider(LLMProvider):
         
         kwargs: dict[str, Any] = {
             "model": model,
-            "messages": self._sanitize_messages(messages),
+            "messages": self._sanitize_messages(self._sanitize_empty_content(messages)),
             "max_tokens": max_tokens,
             "temperature": temperature,
         }
@@ -244,7 +252,7 @@ class LiteLLMProvider(LLMProvider):
                     args = json_repair.loads(args)
                 
                 tool_calls.append(ToolCallRequest(
-                    id=tc.id,
+                    id=_short_tool_id(),
                     name=tc.function.name,
                     arguments=args,
                 ))
@@ -257,7 +265,7 @@ class LiteLLMProvider(LLMProvider):
                 "total_tokens": response.usage.total_tokens,
             }
         
-        reasoning_content = getattr(message, "reasoning_content", None)
+        reasoning_content = getattr(message, "reasoning_content", None) or None
         
         return LLMResponse(
             content=message.content,

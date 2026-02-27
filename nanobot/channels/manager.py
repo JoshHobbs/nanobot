@@ -148,6 +148,18 @@ class ChannelManager:
             except ImportError as e:
                 logger.warning("QQ channel not available: {}", e)
 
+        # Matrix channel
+        if self.config.channels.matrix.enabled:
+            try:
+                from nanobot.channels.matrix import MatrixChannel
+                self.channels["matrix"] = MatrixChannel(
+                    self.config.channels.matrix,
+                    self.bus,
+                )
+                logger.info("Matrix channel enabled")
+            except ImportError as e:
+                logger.warning("Matrix channel not available: {}", e)
+
         # iMessage channel
         if self.config.channels.imsg.enabled:
             try:
@@ -236,6 +248,12 @@ class ChannelManager:
                     self.bus.consume_outbound(),
                     timeout=1.0
                 )
+                
+                if msg.metadata.get("_progress"):
+                    if msg.metadata.get("_tool_hint") and not self.config.channels.send_tool_hints:
+                        continue
+                    if not msg.metadata.get("_tool_hint") and not self.config.channels.send_progress:
+                        continue
                 
                 channel = self.channels.get(msg.channel)
                 if channel:
