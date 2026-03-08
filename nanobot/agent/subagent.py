@@ -8,19 +8,20 @@ from typing import Any
 
 from loguru import logger
 
+from nanobot.agent.tools.filesystem import EditFileTool, ListDirTool, ReadFileTool, WriteFileTool
+from nanobot.agent.tools.registry import ToolRegistry
+from nanobot.agent.tools.shell import ExecTool
+from nanobot.agent.tools.web import WebFetchTool, WebSearchTool
 from nanobot.bus.events import InboundMessage
 from nanobot.bus.queue import MessageBus
+from nanobot.config.schema import ExecToolConfig
 from nanobot.providers.base import LLMProvider
-from nanobot.agent.tools.registry import ToolRegistry
-from nanobot.agent.tools.filesystem import ReadFileTool, WriteFileTool, EditFileTool, ListDirTool
-from nanobot.agent.tools.shell import ExecTool
-from nanobot.agent.tools.web import WebSearchTool, WebFetchTool
 from nanobot.agent.tools.todoist import TodoistTool
 
 
 class SubagentManager:
     """Manages background subagent execution."""
-    
+
     def __init__(
         self,
         provider: LLMProvider,
@@ -31,6 +32,7 @@ class SubagentManager:
         max_tokens: int = 4096,
         reasoning_effort: str | None = None,
         brave_api_key: str | None = None,
+        web_proxy: str | None = None,
         exec_config: "ExecToolConfig | None" = None,
         restrict_to_workspace: bool = False,
         todoist_api_token: str | None = None,
@@ -44,12 +46,13 @@ class SubagentManager:
         self.max_tokens = max_tokens
         self.reasoning_effort = reasoning_effort
         self.brave_api_key = brave_api_key
+        self.web_proxy = web_proxy
         self.exec_config = exec_config or ExecToolConfig()
         self.restrict_to_workspace = restrict_to_workspace
         self.todoist_api_token = todoist_api_token
         self._running_tasks: dict[str, asyncio.Task[None]] = {}
         self._session_tasks: dict[str, set[str]] = {}  # session_key -> {task_id, ...}
-    
+
     async def spawn(
         self,
         task: str,
@@ -78,10 +81,10 @@ class SubagentManager:
                     del self._session_tasks[session_key]
 
         bg_task.add_done_callback(_cleanup)
-        
+
         logger.info("Spawned subagent [{}]: {}", task_id, display_label)
         return f"Subagent [{display_label}] started (id: {task_id}). I'll notify you when it completes."
-    
+
     async def _run_subagent(
         self,
         task_id: str,
@@ -91,7 +94,7 @@ class SubagentManager:
     ) -> None:
         """Execute the subagent task and announce the result."""
         logger.info("Subagent [{}] starting task: {}", task_id, label)
-        
+
         try:
             # Build subagent tools (no message tool, no spawn tool)
             tools = ToolRegistry()
@@ -106,8 +109,8 @@ class SubagentManager:
                 restrict_to_workspace=self.restrict_to_workspace,
                 path_append=self.exec_config.path_append,
             ))
-            tools.register(WebSearchTool(api_key=self.brave_api_key))
-            tools.register(WebFetchTool())
+            tools.register(WebSearchTool(api_key=self.brave_api_key, proxy=self.web_proxy))
+            tools.register(WebFetchTool(proxy=self.web_proxy))
             tools.register(TodoistTool(api_token=self.todoist_api_token))
             
             system_prompt = self._build_subagent_prompt()
@@ -115,15 +118,15 @@ class SubagentManager:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": task},
             ]
-            
+
             # Run agent loop (limited iterations)
             max_iterations = 15
             iteration = 0
             final_result: str | None = None
-            
+
             while iteration < max_iterations:
                 iteration += 1
-                
+
                 response = await self.provider.chat(
                     messages=messages,
                     tools=tools.get_definitions(),
@@ -132,7 +135,7 @@ class SubagentManager:
                     max_tokens=self.max_tokens,
                     reasoning_effort=self.reasoning_effort,
                 )
-                
+
                 if response.has_tool_calls:
                     # Add assistant message with tool calls
                     tool_call_dicts = [
@@ -151,7 +154,7 @@ class SubagentManager:
                         "content": response.content or "",
                         "tool_calls": tool_call_dicts,
                     })
-                    
+
                     # Execute tools
                     for tool_call in response.tool_calls:
                         args_str = json.dumps(tool_call.arguments, ensure_ascii=False)
@@ -166,18 +169,18 @@ class SubagentManager:
                 else:
                     final_result = response.content
                     break
-            
+
             if final_result is None:
                 final_result = "Task completed but no final response was generated."
-            
+
             logger.info("Subagent [{}] completed successfully", task_id)
             await self._announce_result(task_id, label, task, final_result, origin, "ok")
-            
+
         except Exception as e:
             error_msg = f"Error: {str(e)}"
             logger.error("Subagent [{}] failed: {}", task_id, e)
             await self._announce_result(task_id, label, task, error_msg, origin, "error")
-    
+
     async def _announce_result(
         self,
         task_id: str,
@@ -189,7 +192,7 @@ class SubagentManager:
     ) -> None:
         """Announce the subagent result to the main agent via the message bus."""
         status_text = "completed successfully" if status == "ok" else "failed"
-        
+
         announce_content = f"""[Subagent '{label}' {status_text}]
 
 Task: {task}
@@ -198,7 +201,7 @@ Result:
 {result}
 
 Summarize this naturally for the user. Keep it brief (1-2 sentences). Do not mention technical details like "subagent" or task IDs."""
-        
+
         # Inject as system message to trigger main agent
         msg = InboundMessage(
             channel="system",
@@ -206,7 +209,7 @@ Summarize this naturally for the user. Keep it brief (1-2 sentences). Do not men
             chat_id=f"{origin['channel']}:{origin['chat_id']}",
             content=announce_content,
         )
-        
+
         await self.bus.publish_inbound(msg)
         logger.debug("Subagent [{}] announced result to {}:{}", task_id, origin['channel'], origin['chat_id'])
     
